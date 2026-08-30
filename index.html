@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>우리 반 룰렛</title>
+  <meta name="description" content="교실에서 쓰는 구슬 룰렛 추첨기. 반 명단을 저장해두고 상황별 모드로 뽑습니다.">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="assets/favicon-96x96.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-icon-180x180.png">
+  <link rel="manifest" href="assets/manifest.json">
+  <meta name="theme-color" content="#111318">
+  <link rel="stylesheet" href="assets/style.scss">
+  <link rel="stylesheet" href="assets/classroom.scss">
+</head>
+<body>
+<script type="module" src="./src/index.ts"></script>
+
+<h1 class="sr-only">우리 반 룰렛</h1>
+
+<!-- ============ 설정 패널 ============ -->
+<div id="panel" class="cr-panel">
+  <div class="cr-panel-inner">
+
+    <div class="cr-topbar">
+      <div class="cr-brand">🎲 우리 반 룰렛</div>
+      <div class="cr-class">
+        <select id="rosterSelect" aria-label="반 선택"></select>
+        <button id="btnEditRoster" class="cr-btn ghost">명단 편집</button>
+      </div>
+    </div>
+
+    <div class="cr-body">
+
+      <section class="cr-col cr-col-modes">
+        <h2 class="cr-h2">무엇을 뽑을까요?</h2>
+        <div id="modeGrid" class="cr-modes"></div>
+        <div id="modeExtra" class="cr-mode-extra"></div>
+      </section>
+
+      <section class="cr-col cr-col-pool">
+        <h2 class="cr-h2">
+          참가자
+          <span class="cr-count"><b id="poolCount">0</b>명</span>
+        </h2>
+        <div class="cr-pool-tools">
+          <label class="cr-check">
+            <input type="checkbox" id="chkExcludeDrawn" checked>
+            <span>오늘 뽑힌 사람 빼기</span>
+          </label>
+          <button id="btnResetDay" class="cr-btn ghost small">오늘 기록 지우기</button>
+        </div>
+        <p class="cr-hint">이름을 누르면 <b>결석</b> 처리돼요. 다시 누르면 돌아옵니다.</p>
+        <div id="poolChips" class="cr-chips"></div>
+      </section>
+
+    </div>
+
+    <div class="cr-footer">
+      <div class="cr-opts">
+        <label class="cr-check"><input type="checkbox" id="chkSkills"><span>💣 폭탄 스킬</span></label>
+        <label class="cr-check"><input type="checkbox" id="chkDark" checked><span>🌙 어두운 화면</span></label>
+        <label class="cr-range">
+          <span>속도</span>
+          <input type="range" id="rngSpeed" min="1" max="6" step="0.5" value="2">
+          <b id="speedLabel">2×</b>
+        </label>
+      </div>
+      <button id="btnStart" class="cr-btn start">시작!</button>
+    </div>
+
+    <div class="cr-recent">
+      <span class="cr-recent-title">최근 결과</span>
+      <div id="recentList" class="cr-recent-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============ 진행 중 HUD ============ -->
+<div id="hud" class="cr-hud hidden">
+  <span id="hudMode" class="cr-hud-mode"></span>
+  <button id="btnAbort" class="cr-btn ghost small">그만하기</button>
+</div>
+
+<!-- ============ 결과 ============ -->
+<div id="result" class="cr-result hidden">
+  <div class="cr-result-card">
+    <h2 id="resultTitle" class="cr-result-title"></h2>
+    <div id="resultBody" class="cr-result-body"></div>
+    <div class="cr-result-actions">
+      <button id="btnAgain" class="cr-btn start">한 번 더</button>
+      <button id="btnHome" class="cr-btn ghost">설정으로</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 명단 편집 ============ -->
+<div id="rosterModal" class="cr-modal hidden">
+  <div class="cr-modal-card">
+    <h2 class="cr-h2">명단 편집</h2>
+    <label class="cr-field">
+      <span>반 이름</span>
+      <input type="text" id="rosterName" placeholder="예) 3학년 2반">
+    </label>
+    <div class="cr-field">
+      <span>명단 방식</span>
+      <div class="cr-seg" id="rosterMode">
+        <button type="button" data-mode="number">번호 <em>권장</em></button>
+        <button type="button" data-mode="name">이름</button>
+      </div>
+    </div>
+
+    <label class="cr-field" id="fieldCount">
+      <span>학생 수</span>
+      <input type="number" id="rosterCount" min="1" max="60" value="24">
+    </label>
+    <p class="cr-hint" id="numberPreview"></p>
+
+    <label class="cr-field hidden" id="fieldNames">
+      <span>학생 이름 <em>(한 줄에 한 명, 또는 쉼표로 구분)</em></span>
+      <textarea id="rosterMembers" rows="10" placeholder="한 줄에 한 명씩"></textarea>
+    </label>
+    <p class="cr-hint hidden" id="nameWarn">
+      ⚠️ 이름은 이 브라우저에만 저장되고 서버로 보내지 않습니다. 그래도 <b>여러 사람이 쓰는 교실 PC</b>나
+      화면을 다른 반이 보는 상황이라면 번호 방식을 권합니다.<br>
+      엑셀에서 이름 칸을 복사해 붙여넣어도 되고, 앞의 번호는 자동으로 지워집니다.
+    </p>
+    <div class="cr-modal-actions">
+      <button id="btnDeleteRoster" class="cr-btn danger">이 반 삭제</button>
+      <div class="cr-spacer"></div>
+      <button id="btnCancelRoster" class="cr-btn ghost">취소</button>
+      <button id="btnSaveRoster" class="cr-btn start">저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="cr-credit">
+  구슬 물리 엔진 &copy; <a href="https://github.com/lazygyu/roulette" target="_blank" rel="noreferrer">lazygyu/roulette</a> (MIT)
+</div>
+</body>
+</html>

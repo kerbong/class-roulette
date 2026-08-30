@@ -1,0 +1,22 @@
+{
+  "name": "classroom-roulette",
+  "version": "1.0.0",
+  "description": "교실용 구슬 룰렛 추첨기 (lazygyu/roulette 엔진 기반)",
+  "license": "MIT",
+  "devDependencies": {
+    "@biomejs/biome": "2.4.4",
+    "@parcel/packager-raw-url": "^2.16.4",
+    "@parcel/transformer-sass": "^2.16.4",
+    "@parcel/transformer-webmanifest": "^2.16.4",
+    "parcel": "^2.16.4",
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "lint": "biome check --fix src/",
+    "dev": "parcel index.html --port 1235",
+    "build": "parcel build index.html --public-url ./"
+  },
+  "dependencies": {
+    "box2d-wasm": "^7.0.0"
+  }
+}
