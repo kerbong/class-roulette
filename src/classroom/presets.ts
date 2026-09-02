@@ -173,3 +173,22 @@ export function splitIntoTeams(order: string[], teamCount: number): string[][] {
   });
   return teams;
 }
+
+/**
+ * 남녀가 한 모둠에 몰리지 않게 나눈다.
+ *
+ * 골인 순서를 성별끼리 모아 다시 줄 세운 뒤 같은 뱀 모양으로 돌린다.
+ * 같은 성별이 연달아 있으니 서로 다른 모둠으로 흩어지고, 뱀 모양이라
+ * 나머지 인원도 한쪽에 쌓이지 않는다. 모둠별 총원은 그대로 고르다.
+ */
+export function splitIntoTeamsMixed(order: { name: string; gender: 'm' | 'f' | 'x' }[], teamCount: number): string[][] {
+  const byGender = [
+    ...order.filter((member) => member.gender === 'm'),
+    ...order.filter((member) => member.gender === 'f'),
+    ...order.filter((member) => member.gender === 'x'),
+  ];
+  return splitIntoTeams(
+    byGender.map((member) => member.name),
+    teamCount
+  );
+}

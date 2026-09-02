@@ -1,6 +1,6 @@
 import options from '../options';
 import type { Roulette } from '../roulette';
-import { type Preset, presets, splitIntoTeams } from './presets';
+import { type Preset, presets, splitIntoTeams, splitIntoTeamsMixed } from './presets';
 import * as store from './storage';
 
 function $<T extends HTMLElement>(selector: string): T {
@@ -32,6 +32,8 @@ export class ClassroomApp {
   /** countMode가 'input'인 프리셋에서 교사가 넣은 숫자. 프리셋별로 기억한다 */
   private inputCounts: Record<string, number> = {};
   private genderFilter: GenderFilter = 'all';
+  /** 모둠 나누기에서 남녀를 흩어놓을지 */
+  private mixGender = true;
   private speed = 2;
   private currentMap = -1;
   /** 명단 편집 창에서 작업 중인 명단. 저장을 눌러야 실제 명단에 반영된다 */
@@ -140,6 +142,17 @@ export class ClassroomApp {
     });
 
     box.append(label, input);
+
+    // 모둠 나누기는 성별을 알면 남녀를 흩어놓을 수 있다. 성별이 없으면 물어볼 것도 없다
+    if (this.preset.resultKind === 'teams' && store.hasGenderInfo(this.roster.members)) {
+      const toggle = document.createElement('label');
+      toggle.className = 'cr-check';
+      toggle.innerHTML = `<input type="checkbox" ${this.mixGender ? 'checked' : ''}><span>남녀 고르게 섞기</span>`;
+      toggle.querySelector('input')!.addEventListener('change', (e) => {
+        this.mixGender = (e.target as HTMLInputElement).checked;
+      });
+      box.append(toggle);
+    }
   }
 
   /** 성별 탭. 성별이 하나도 지정돼 있지 않으면 탭 대신 안내를 띄운다 */
@@ -404,11 +417,26 @@ export class ClassroomApp {
       });
     } else {
       const teamCount = Math.max(2, Math.min(this.inputCounts[this.preset.id], winners.length));
-      splitIntoTeams(winners, teamCount).forEach((members, i) => {
+      const hasGender = store.hasGenderInfo(this.roster.members);
+      const genderOf = new Map(this.roster.members.map((member) => [member.name, member.gender]));
+
+      const teams =
+        hasGender && this.mixGender
+          ? splitIntoTeamsMixed(
+              winners.map((name) => ({ name, gender: genderOf.get(name) ?? 'x' })),
+              teamCount
+            )
+          : splitIntoTeams(winners, teamCount);
+
+      teams.forEach((members, i) => {
         const el = document.createElement('div');
         el.className = 'cr-team';
-        const names = members.map((m) => `<span>${m}</span>`).join('');
-        el.innerHTML = `<h3>${i + 1}모둠 <em>${members.length}명</em></h3>${names}`;
+        const names = members.map((m) => `<span class="g-${genderOf.get(m) ?? 'x'}">${m}</span>`).join('');
+        // 남녀가 실제로 흩어졌는지 모둠마다 숫자로 보여준다
+        const male = members.filter((m) => genderOf.get(m) === 'm').length;
+        const female = members.filter((m) => genderOf.get(m) === 'f').length;
+        const mix = hasGender ? ` <i>남${male}·여${female}</i>` : '';
+        el.innerHTML = `<h3>${i + 1}모둠 <em>${members.length}명</em>${mix}</h3>${names}`;
         body.append(el);
       });
     }
