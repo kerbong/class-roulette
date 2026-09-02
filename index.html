@@ -43,14 +43,21 @@
           참가자
           <span class="cr-count"><b id="poolCount">0</b>명</span>
         </h2>
-        <div class="cr-pool-tools">
-          <label class="cr-check">
-            <input type="checkbox" id="chkExcludeDrawn" checked>
-            <span>오늘 뽑힌 사람 빼기</span>
-          </label>
-          <button id="btnResetDay" class="cr-btn ghost small">오늘 기록 지우기</button>
+        <div class="cr-seg cr-gender hidden" id="genderFilter">
+          <button type="button" data-g="all">전체 <em>0</em></button>
+          <button type="button" data-g="m">남자 <em>0</em></button>
+          <button type="button" data-g="f">여자 <em>0</em></button>
         </div>
-        <p class="cr-hint">이름을 누르면 <b>결석</b> 처리돼요. 다시 누르면 돌아옵니다.</p>
+        <p class="cr-hint" id="genderTip">
+          <b>명단 편집</b>에서 성별을 정해두면 남자만·여자만 골라 뽑을 수 있어요.
+        </p>
+
+        <div class="cr-streak" id="streakBox">
+          <span id="streakText"></span>
+          <button id="btnResetDay" class="cr-btn ghost small">기록 초기화</button>
+        </div>
+
+        <p class="cr-hint">눌러서 <b>결석</b> 처리. 다시 누르면 돌아옵니다.</p>
         <div id="poolChips" class="cr-chips"></div>
       </section>
 
@@ -89,9 +96,17 @@
     <h2 id="resultTitle" class="cr-result-title"></h2>
     <div id="resultBody" class="cr-result-body"></div>
     <div class="cr-result-actions">
-      <button id="btnAgain" class="cr-btn start">한 번 더</button>
-      <button id="btnHome" class="cr-btn ghost">설정으로</button>
+      <button id="btnAgain" class="cr-btn start">
+        한 번 더<em>같은 설정으로 이어서</em>
+      </button>
+      <button id="btnContinue" class="cr-btn">
+        이어하기<em>뽑힌 사람 빼고 설정 바꾸기</em>
+      </button>
+      <button id="btnFresh" class="cr-btn ghost">
+        새로 뽑기<em>기록 지우고 전원 참가</em>
+      </button>
     </div>
+    <p class="cr-result-note" id="resultNote"></p>
   </div>
 </div>
 
@@ -119,13 +134,26 @@
 
     <label class="cr-field hidden" id="fieldNames">
       <span>학생 이름 <em>(한 줄에 한 명, 또는 쉼표로 구분)</em></span>
-      <textarea id="rosterMembers" rows="10" placeholder="한 줄에 한 명씩"></textarea>
+      <textarea id="rosterMembers" rows="8" placeholder="한 줄에 한 명씩"></textarea>
     </label>
     <p class="cr-hint hidden" id="nameWarn">
       ⚠️ 이름은 이 브라우저에만 저장되고 서버로 보내지 않습니다. 그래도 <b>여러 사람이 쓰는 교실 PC</b>나
       화면을 다른 반이 보는 상황이라면 번호 방식을 권합니다.<br>
       엑셀에서 이름 칸을 복사해 붙여넣어도 되고, 앞의 번호는 자동으로 지워집니다.
     </p>
+
+    <div class="cr-field">
+      <span>성별 <em>(안 정해도 됩니다. 정해두면 남자만·여자만 뽑을 수 있어요)</em></span>
+      <div class="cr-quickset">
+        <span>앞에서부터</span>
+        <input type="number" id="quickMale" min="0" max="60" value="0">
+        <span>명이 남학생</span>
+        <button type="button" id="btnQuickGender" class="cr-btn ghost small">한 번에 정하기</button>
+        <button type="button" id="btnClearGender" class="cr-btn ghost small">모두 해제</button>
+      </div>
+      <div id="genderGrid" class="cr-gender-grid"></div>
+      <p class="cr-hint">하나씩 눌러서 <b>남 → 여 → 미지정</b> 순으로 바꿀 수 있어요.</p>
+    </div>
     <div class="cr-modal-actions">
       <button id="btnDeleteRoster" class="cr-btn danger">이 반 삭제</button>
       <div class="cr-spacer"></div>

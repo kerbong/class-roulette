@@ -14,6 +14,8 @@
   --cr-accent: #4da3ff;
   --cr-accent-2: #7bd88f;
   --cr-danger: #ff6b6b;
+  --cr-male: #4a86d8;
+  --cr-female: #d8629c;
   --cr-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
 }
 
@@ -27,6 +29,8 @@
   --cr-accent: #1f6fd0;
   --cr-accent-2: #2e9e57;
   --cr-danger: #d94848;
+  --cr-male: #2f6dc0;
+  --cr-female: #bf3f80;
   --cr-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
 }
 
@@ -304,14 +308,86 @@ body {
   background: var(--cr-card-2);
   color: var(--cr-text);
 
+  /* 성별은 테두리 색으로만 구분한다. 배경까지 칠하면 결석·뽑힘 표시가 묻힌다 */
+  &.g-m {
+    border-color: var(--cr-male);
+  }
+
+  &.g-f {
+    border-color: var(--cr-female);
+  }
+
   &.absent {
     opacity: 0.4;
     text-decoration: line-through;
   }
 
   &.drawn {
-    opacity: 0.55;
+    opacity: 0.5;
     border-style: dashed;
+    color: var(--cr-dim);
+  }
+}
+
+/* --- 성별 탭 --- */
+
+.cr-gender {
+  display: flex;
+  width: 100%;
+  margin-bottom: 8px;
+
+  button {
+    flex: 1;
+    padding: 9px 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+
+    em {
+      font-style: normal;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: rgba(127, 127, 127, 0.25);
+    }
+
+    &[data-g='m'].active {
+      background: var(--cr-male);
+    }
+
+    &[data-g='f'].active {
+      background: var(--cr-female);
+    }
+  }
+}
+
+/* --- 이어하기 상태 --- */
+
+.cr-streak {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  border-radius: 11px;
+  background: var(--cr-card-2);
+  border: 1px solid var(--cr-line);
+  font-size: 13.5px;
+
+  &.active {
+    border-color: var(--cr-accent);
+    background: color-mix(in srgb, var(--cr-accent) 12%, var(--cr-card-2));
+  }
+
+  b.on {
+    color: var(--cr-accent);
+  }
+
+  b.fresh {
     color: var(--cr-dim);
   }
 }
@@ -543,6 +619,118 @@ body {
   display: flex;
   justify-content: center;
   gap: 12px;
+  flex-wrap: wrap;
+
+  /* 버튼마다 "누르면 무슨 일이 생기는지"를 한 줄로 붙인다.
+     이어하기와 새로 뽑기는 잘못 누르면 기록이 날아가서 라벨만으로는 부족하다 */
+  .cr-btn {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    line-height: 1.25;
+
+    em {
+      font-style: normal;
+      font-size: 11.5px;
+      font-weight: 600;
+      opacity: 0.75;
+    }
+  }
+}
+
+.cr-result-note {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--cr-dim);
+}
+
+/* --- 명단 편집: 성별 지정 --- */
+
+.cr-quickset {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  font-weight: 600;
+  margin-bottom: 10px;
+
+  input {
+    width: 74px;
+    font: inherit;
+    font-size: 17px;
+    font-weight: 800;
+    text-align: center;
+    padding: 7px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--cr-line);
+    background: var(--cr-card-2);
+    color: var(--cr-text);
+  }
+}
+
+.cr-gender-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-height: 210px;
+  overflow-y: auto;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--cr-card-2);
+  border: 1px solid var(--cr-line);
+}
+
+.cr-gender-summary {
+  width: 100%;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--cr-dim);
+  margin-bottom: 4px;
+}
+
+.cr-gchip {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 9px;
+  border: 1px solid var(--cr-line);
+  background: var(--cr-card);
+  color: var(--cr-dim);
+
+  em {
+    font-style: normal;
+    font-size: 11px;
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: rgba(127, 127, 127, 0.22);
+  }
+
+  &.g-m {
+    border-color: var(--cr-male);
+    color: var(--cr-text);
+
+    em {
+      background: var(--cr-male);
+      color: #fff;
+    }
+  }
+
+  &.g-f {
+    border-color: var(--cr-female);
+    color: var(--cr-text);
+
+    em {
+      background: var(--cr-female);
+      color: #fff;
+    }
+  }
 }
 
 /* ---------------------------------------------------------------- 명단 편집 */

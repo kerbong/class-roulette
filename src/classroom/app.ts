@@ -20,6 +20,10 @@ function toast(message: string) {
 /** 결과가 나온 뒤 이 시간만큼은 구슬 화면(폭죽)을 보여주고 나서 결과창을 띄운다 */
 const RESULT_DELAY_MS = 1800;
 
+type GenderFilter = store.GenderFilter;
+
+const FILTER_LABEL: Record<GenderFilter, string> = { all: '전체', m: '남자', f: '여자' };
+
 export class ClassroomApp {
   private rosters: store.Roster[] = [];
   private rosterId = '';
@@ -27,9 +31,11 @@ export class ClassroomApp {
   private preset: Preset = presets[0];
   /** countMode가 'input'인 프리셋에서 교사가 넣은 숫자. 프리셋별로 기억한다 */
   private inputCounts: Record<string, number> = {};
-  private excludeDrawn = true;
+  private genderFilter: GenderFilter = 'all';
   private speed = 2;
   private currentMap = -1;
+  /** 명단 편집 창에서 작업 중인 명단. 저장을 눌러야 실제 명단에 반영된다 */
+  private editMembers: store.Member[] = [];
 
   constructor(private roulette: Roulette) {}
 
@@ -56,13 +62,18 @@ export class ClassroomApp {
     return this.rosters.find((r) => r.id === this.rosterId) ?? this.rosters[0];
   }
 
-  /** 결석자를 빼고, 설정에 따라 오늘 이미 뽑힌 사람도 뺀 명단 */
+  /** 결석자와 이어하기로 이미 뽑힌 사람을 뺀, 아직 뽑힐 수 있는 사람 */
+  private available(): store.Member[] {
+    return this.roster.members.filter(
+      (member) => !this.day.absent.includes(member.name) && !this.day.drawn.includes(member.name)
+    );
+  }
+
+  /** available에서 성별 조건까지 맞는 참가자 이름 */
   private pool(): string[] {
-    return this.roster.members.filter((name) => {
-      if (this.day.absent.includes(name)) return false;
-      if (this.excludeDrawn && this.day.drawn.includes(name)) return false;
-      return true;
-    });
+    return this.available()
+      .filter((member) => this.genderFilter === 'all' || member.gender === this.genderFilter)
+      .map((member) => member.name);
   }
 
   /** 이번 프리셋에서 뽑을 인원 */
@@ -131,39 +142,89 @@ export class ClassroomApp {
     box.append(label, input);
   }
 
+  /** 성별 탭. 성별이 하나도 지정돼 있지 않으면 탭 대신 안내를 띄운다 */
+  private renderGenderFilter() {
+    const hasGender = store.hasGenderInfo(this.roster.members);
+    $('#genderFilter').classList.toggle('hidden', !hasGender);
+    $('#genderTip').classList.toggle('hidden', hasGender);
+    if (!hasGender) {
+      this.genderFilter = 'all';
+      return;
+    }
+
+    const available = this.available();
+    const counts: Record<GenderFilter, number> = {
+      all: available.length,
+      m: available.filter((member) => member.gender === 'm').length,
+      f: available.filter((member) => member.gender === 'f').length,
+    };
+
+    document.querySelectorAll<HTMLElement>('#genderFilter button').forEach((btn) => {
+      const key = btn.dataset.g as GenderFilter;
+      btn.classList.toggle('active', key === this.genderFilter);
+      const badge = btn.querySelector('em');
+      if (badge) badge.textContent = String(counts[key]);
+    });
+  }
+
+  /** 이어하기로 몇 명이 빠져 있는지를 항상 보이게 한다 */
+  private renderStreak() {
+    const drawn = this.day.drawn.length;
+    $('#streakText').innerHTML =
+      drawn === 0
+        ? '<b class="fresh">새 뽑기</b> · 전원 참가'
+        : `<b class="on">이어하기 중</b> · 이미 뽑힌 <b>${drawn}명</b> 제외`;
+    $('#streakBox').classList.toggle('active', drawn > 0);
+    $<HTMLButtonElement>('#btnResetDay').disabled = drawn === 0 && this.day.absent.length === 0;
+  }
+
   private renderPool() {
     const pool = this.pool();
     $('#poolCount').textContent = String(pool.length);
+    this.renderGenderFilter();
+    this.renderStreak();
+
+    // 성별 탭을 켜 두면 그 성별만 보여준다. 다른 성별까지 늘어놓으면 무엇이 대상인지 흐려진다
+    const shown = this.roster.members.filter(
+      (member) => this.genderFilter === 'all' || member.gender === this.genderFilter
+    );
 
     const chips = $('#poolChips');
     chips.innerHTML = '';
-    this.roster.members.forEach((name) => {
+    shown.forEach((member) => {
       const chip = document.createElement('button');
-      chip.className = 'cr-chip';
-      chip.textContent = name;
-      if (this.day.absent.includes(name)) chip.classList.add('absent');
-      else if (this.excludeDrawn && this.day.drawn.includes(name)) chip.classList.add('drawn');
-      chip.addEventListener('click', () => this.toggleAbsent(name));
+      chip.className = `cr-chip g-${member.gender}`;
+      chip.textContent = member.name;
+      if (this.day.absent.includes(member.name)) chip.classList.add('absent');
+      else if (this.day.drawn.includes(member.name)) chip.classList.add('drawn');
+      chip.addEventListener('click', () => this.toggleAbsent(member.name));
       chips.append(chip);
     });
 
     const startBtn = $<HTMLButtonElement>('#btnStart');
     const enough = pool.length >= 2;
     startBtn.disabled = !enough;
-    startBtn.textContent = enough ? `시작!  ${this.startLabel(pool.length)}` : '참가자가 부족해요';
+    if (enough) {
+      startBtn.textContent = `시작!  ${this.startLabel(pool.length)}`;
+    } else if (this.day.drawn.length > 0) {
+      startBtn.textContent = '남은 사람이 부족 — 기록을 초기화하세요';
+    } else {
+      startBtn.textContent = '참가자가 부족해요';
+    }
   }
 
   /** 시작 버튼에 "무슨 일이 일어날지"를 적어둔다 */
   private startLabel(poolSize: number): string {
-    if (this.preset.resultKind === 'order') return '순서 정하기';
-    if (this.preset.resultKind === 'teams') return `${this.inputCounts[this.preset.id]}모둠으로 나누기`;
+    const who = this.genderFilter === 'all' ? '' : `${FILTER_LABEL[this.genderFilter]} 중 `;
+    if (this.preset.resultKind === 'order') return `${who}순서 정하기`;
+    if (this.preset.resultKind === 'teams') return `${who}${this.inputCounts[this.preset.id]}모둠으로 나누기`;
     const count = this.drawCount(poolSize);
-    return this.preset.fromLast ? `꼴찌 ${count}명 뽑기` : `${count}명 뽑기`;
+    return this.preset.fromLast ? `${who}꼴찌 ${count}명 뽑기` : `${who}${count}명 뽑기`;
   }
 
   private renderRecent() {
     const list = $('#recentList');
-    const log = store.loadLog().slice(0, 5);
+    const log = store.loadLog().slice(0, 6);
     list.innerHTML = '';
     if (log.length === 0) {
       list.innerHTML = '<span class="cr-recent-empty">아직 없습니다</span>';
@@ -173,10 +234,11 @@ export class ClassroomApp {
       const time = new Date(entry.time);
       const shown = entry.winners.slice(0, 4).join(', ');
       const rest = entry.winners.length > 4 ? ` 외 ${entry.winners.length - 4}명` : '';
+      const who = entry.genderFilter && entry.genderFilter !== 'all' ? `${FILTER_LABEL[entry.genderFilter]} · ` : '';
       const item = document.createElement('div');
       item.className = 'cr-recent-item';
       item.innerHTML = `<b>${time.getHours()}:${String(time.getMinutes()).padStart(2, '0')}</b>
-        <em>${entry.presetTitle}</em> <span>${shown}${rest}</span>`;
+        <em>${who}${entry.presetTitle}</em> <span>${shown}${rest}</span>`;
       list.append(item);
     });
   }
@@ -201,6 +263,12 @@ export class ClassroomApp {
     this.syncMarbles();
   }
 
+  private setGenderFilter(filter: GenderFilter) {
+    this.genderFilter = filter;
+    this.renderPool();
+    this.syncMarbles();
+  }
+
   private toggleAbsent(name: string) {
     const index = this.day.absent.indexOf(name);
     if (index >= 0) this.day.absent.splice(index, 1);
@@ -214,6 +282,8 @@ export class ClassroomApp {
     this.rosterId = id;
     store.setActiveRosterId(id);
     this.day = store.loadDayState(id);
+    // 반이 바뀌면 이전 반 기준의 성별 조건은 의미가 없다
+    this.genderFilter = 'all';
     this.renderPool();
     this.syncMarbles();
   }
@@ -238,7 +308,9 @@ export class ClassroomApp {
   private beginRound() {
     const pool = this.pool();
     if (pool.length < 2) {
-      toast('참가자가 2명 이상이어야 합니다');
+      toast(
+        this.day.drawn.length > 0 ? '남은 사람이 부족합니다. 기록을 초기화하세요' : '참가자가 2명 이상이어야 합니다'
+      );
       return;
     }
     const count = this.drawCount(pool.length);
@@ -263,6 +335,7 @@ export class ClassroomApp {
     this.roulette.start();
   }
 
+  /** 결과창을 닫고 설정 화면으로. 이어하기 기록은 그대로 둔다 */
   private goHome() {
     this.roulette.reset();
     // reset()이 맵을 다시 깔았으니 syncMarbles가 맵을 건너뛰지 않도록 표시를 지운다
@@ -272,6 +345,14 @@ export class ClassroomApp {
     $('#panel').classList.remove('hidden');
     this.renderPool();
     this.syncMarbles();
+  }
+
+  /** 누적을 비우고 처음부터. 결석 체크는 살려둔다 */
+  private freshStart() {
+    this.day.drawn = [];
+    store.saveDayState(this.rosterId, this.day);
+    this.goHome();
+    toast('기록을 지웠습니다. 전원 참가');
   }
 
   private onGoal(winners: string[]) {
@@ -287,7 +368,9 @@ export class ClassroomApp {
       time: Date.now(),
       rosterName: this.roster.name,
       presetTitle: this.preset.title,
+      genderFilter: this.genderFilter,
       winners,
+      streak: this.day.drawn.length,
     });
 
     setTimeout(() => this.showResult(winners), RESULT_DELAY_MS);
@@ -295,7 +378,8 @@ export class ClassroomApp {
 
   private showResult(winners: string[]) {
     $('#hud').classList.add('hidden');
-    $('#resultTitle').textContent = `${this.preset.emoji} ${this.preset.resultTitle}`;
+    const who = this.genderFilter === 'all' ? '' : `${FILTER_LABEL[this.genderFilter]} · `;
+    $('#resultTitle').textContent = `${this.preset.emoji} ${who}${this.preset.resultTitle}`;
 
     const body = $('#resultBody');
     body.innerHTML = '';
@@ -329,6 +413,12 @@ export class ClassroomApp {
       });
     }
 
+    // 다음 판에 몇 명이 남는지 미리 알려준다. '한 번 더'를 눌러도 되는 상황인지 바로 보인다
+    const drawn = this.day.drawn.length;
+    const left = this.pool().length;
+    $('#resultNote').textContent =
+      drawn > 0 ? `지금까지 ${drawn}명 뽑았습니다. 이어서 뽑으면 ${left}명 중에서 고릅니다.` : '';
+
     $('#result').classList.remove('hidden');
     this.renderRecent();
     this.renderPool();
@@ -341,9 +431,14 @@ export class ClassroomApp {
       ? { id: store.newRosterId(), name: '', mode: 'number', members: store.makeNumberMembers(24) }
       : this.roster;
     const modal = $('#rosterModal');
+    this.editMembers = roster.members.map((member) => ({ ...member }));
+
     $<HTMLInputElement>('#rosterName').value = roster.name;
-    $<HTMLTextAreaElement>('#rosterMembers').value = roster.mode === 'name' ? roster.members.join('\n') : '';
+    $<HTMLTextAreaElement>('#rosterMembers').value =
+      roster.mode === 'name' ? roster.members.map((m) => m.name).join('\n') : '';
     $<HTMLInputElement>('#rosterCount').value = String(roster.mode === 'number' ? roster.members.length : 24);
+    $<HTMLInputElement>('#quickMale').value = String(this.editMembers.filter((m) => m.gender === 'm').length);
+
     modal.dataset.editing = roster.id;
     modal.dataset.isNew = String(isNew);
     $<HTMLButtonElement>('#btnDeleteRoster').style.display = isNew || this.rosters.length <= 1 ? 'none' : '';
@@ -363,12 +458,65 @@ export class ClassroomApp {
     $('#numberPreview').classList.toggle('hidden', !isNumber);
     $('#fieldNames').classList.toggle('hidden', isNumber);
     $('#nameWarn').classList.toggle('hidden', isNumber);
+    this.syncEditMembers();
+  }
+
+  /**
+   * 지금 켜져 있는 입력(학생 수 또는 이름 목록)에 맞춰 편집 중인 명단을 다시 만든다.
+   * 이미 정해둔 성별은 최대한 살린다.
+   */
+  private syncEditMembers() {
+    const mode = ($('#rosterModal').dataset.mode ?? 'number') as store.RosterMode;
+
+    if (mode === 'number') {
+      const count = Math.max(0, Number.parseInt($<HTMLInputElement>('#rosterCount').value, 10) || 0);
+      const next = store.makeNumberMembers(count).slice(0, count);
+      // 번호는 순서가 곧 사람이라 인덱스로 성별을 물려받는다
+      this.editMembers = next.map((member, i) => ({ ...member, gender: this.editMembers[i]?.gender ?? 'x' }));
+    } else {
+      const previous = new Map(this.editMembers.map((member) => [member.name, member.gender]));
+      this.editMembers = store
+        .parseMembers($<HTMLTextAreaElement>('#rosterMembers').value)
+        .map((name) => ({ name, gender: previous.get(name) ?? 'x' }));
+    }
+
     this.renderNumberPreview();
+    this.renderGenderGrid();
   }
 
   private renderNumberPreview() {
-    const count = Number.parseInt($<HTMLInputElement>('#rosterCount').value, 10) || 0;
+    const count = this.editMembers.length;
     $('#numberPreview').textContent = count > 0 ? `1번 ~ ${count}번, 모두 ${count}명` : '학생 수를 넣어주세요';
+  }
+
+  private renderGenderGrid() {
+    const grid = $('#genderGrid');
+    grid.innerHTML = '';
+    if (this.editMembers.length === 0) {
+      grid.innerHTML = '<span class="cr-recent-empty">명단을 먼저 넣어주세요</span>';
+      return;
+    }
+
+    const male = this.editMembers.filter((m) => m.gender === 'm').length;
+    const female = this.editMembers.filter((m) => m.gender === 'f').length;
+    const summary = document.createElement('div');
+    summary.className = 'cr-gender-summary';
+    summary.textContent = `남 ${male}명 · 여 ${female}명 · 미지정 ${this.editMembers.length - male - female}명`;
+    grid.append(summary);
+
+    this.editMembers.forEach((member, i) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = `cr-gchip g-${member.gender}`;
+      chip.innerHTML = `${member.name}<em>${store.genderLabel(member.gender)}</em>`;
+      chip.addEventListener('click', () => {
+        // 남 → 여 → 미지정 순환
+        const next: store.Gender = member.gender === 'm' ? 'f' : member.gender === 'f' ? 'x' : 'm';
+        this.editMembers[i] = { ...member, gender: next };
+        this.renderGenderGrid();
+      });
+      grid.append(chip);
+    });
   }
 
   private saveRosterModal() {
@@ -378,10 +526,8 @@ export class ClassroomApp {
     const mode = (modal.dataset.mode ?? 'number') as store.RosterMode;
     const name = $<HTMLInputElement>('#rosterName').value.trim() || '이름 없는 반';
 
-    const members =
-      mode === 'number'
-        ? store.makeNumberMembers(Number.parseInt($<HTMLInputElement>('#rosterCount').value, 10) || 0)
-        : store.parseMembers($<HTMLTextAreaElement>('#rosterMembers').value);
+    this.syncEditMembers();
+    const members = this.editMembers.map((member) => ({ ...member }));
 
     if (members.length < 2) {
       toast(mode === 'number' ? '학생 수는 2명 이상이어야 합니다' : '학생 이름을 두 명 이상 넣어주세요');
@@ -420,8 +566,13 @@ export class ClassroomApp {
   private bindEvents() {
     $('#btnStart').addEventListener('click', () => this.beginRound());
     $('#btnAbort').addEventListener('click', () => this.goHome());
-    $('#btnHome').addEventListener('click', () => this.goHome());
     $('#btnAgain').addEventListener('click', () => this.beginRound());
+    $('#btnContinue').addEventListener('click', () => this.goHome());
+    $('#btnFresh').addEventListener('click', () => this.freshStart());
+
+    document.querySelectorAll<HTMLElement>('#genderFilter button').forEach((btn) => {
+      btn.addEventListener('click', () => this.setGenderFilter(btn.dataset.g as GenderFilter));
+    });
 
     $<HTMLSelectElement>('#rosterSelect').addEventListener('change', (e) => {
       const value = (e.target as HTMLSelectElement).value;
@@ -437,15 +588,22 @@ export class ClassroomApp {
     document.querySelectorAll('#rosterMode button').forEach((btn) => {
       btn.addEventListener('click', () => this.setRosterMode((btn as HTMLElement).dataset.mode as store.RosterMode));
     });
-    $('#rosterCount').addEventListener('input', () => this.renderNumberPreview());
+    $('#rosterCount').addEventListener('input', () => this.syncEditMembers());
+    $('#rosterMembers').addEventListener('input', () => this.syncEditMembers());
     $('#btnSaveRoster').addEventListener('click', () => this.saveRosterModal());
     $('#btnCancelRoster').addEventListener('click', () => $('#rosterModal').classList.add('hidden'));
     $('#btnDeleteRoster').addEventListener('click', () => this.deleteRoster());
 
-    $<HTMLInputElement>('#chkExcludeDrawn').addEventListener('change', (e) => {
-      this.excludeDrawn = (e.target as HTMLInputElement).checked;
-      this.renderPool();
-      this.syncMarbles();
+    $('#btnQuickGender').addEventListener('click', () => {
+      const male = Math.max(0, Number.parseInt($<HTMLInputElement>('#quickMale').value, 10) || 0);
+      this.editMembers = store.assignByOrder(this.editMembers, male);
+      this.renderGenderGrid();
+    });
+
+    $('#btnClearGender').addEventListener('click', () => {
+      this.editMembers = this.editMembers.map((member) => ({ ...member, gender: 'x' }));
+      $<HTMLInputElement>('#quickMale').value = '0';
+      this.renderGenderGrid();
     });
 
     $('#btnResetDay').addEventListener('click', () => {
@@ -453,7 +611,7 @@ export class ClassroomApp {
       store.saveDayState(this.rosterId, this.day);
       this.renderPool();
       this.syncMarbles();
-      toast('오늘 기록을 지웠습니다');
+      toast('기록과 결석 체크를 지웠습니다');
     });
 
     $<HTMLInputElement>('#chkSkills').addEventListener('change', (e) => {
@@ -473,7 +631,7 @@ export class ClassroomApp {
 
     this.roulette.addEventListener('message', (e) => toast((e as CustomEvent).detail));
 
-    // 스페이스바로 시작·다시하기. 수업 중에 마우스를 찾지 않아도 되게
+    // 스페이스바로 시작·이어하기. 수업 중에 마우스를 찾지 않아도 되게
     document.addEventListener('keydown', (e) => {
       if (e.code !== 'Space') return;
       const tag = (document.activeElement?.tagName ?? '').toLowerCase();
